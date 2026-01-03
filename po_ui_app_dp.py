@@ -68,7 +68,7 @@ def update_po_record(po_id, col_name, val):
 
 def send_full_alert(po_id=None, cust=None, product_type=None, part_no=None, qty=None, eta=None, issue_date=None, remark=None):
     # แก้ไข URL หลังจาก Deploy สำเร็จแล้วมาแก้ที่นี่
-    APP_URL = "https://your-app-name.streamlit.app" 
+    APP_URL = "https://sim-po-2026.streamlit.app/" 
     try:
         msg = EmailMessage()
         msg['Subject'] = f"📣 New PO Created - {po_id} [{cust}]"
@@ -229,6 +229,7 @@ if st.session_state.authenticated:
                         if st.form_submit_button("Update"):
                             update_po_record(target, "Logistic-Ship-Date", str(s_date))
                             st.success("Updated!"); time.sleep(1); st.rerun()
+
 
 
 
