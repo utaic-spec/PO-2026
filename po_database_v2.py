@@ -3,77 +3,129 @@ import sqlite3
 import pandas as pd
 from datetime import datetime
 import io
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
-# --- การตั้งค่าเบื้องต้น ---
-DB_NAME = "po_database.db"
+# --- 1. การตั้งค่าเบื้องต้น ---
+DB_NAME = "po_database_v2.db"
 
 def init_db():
-    """สร้างตารางข้อมูลถ้ายังไม่มี"""
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
+    # สร้างตารางตามคอลัมน์ใน Google Sheet ของคุณรุ่ง
     c.execute('''CREATE TABLE IF NOT EXISTS po_records
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  po_number TEXT, 
-                  item_name TEXT, 
-                  amount REAL, 
-                  date_added TEXT, 
-                  added_by TEXT)''')
+                  timestamp TEXT,
+                  po_id TEXT,
+                  customer TEXT,
+                  product_po_qty TEXT,
+                  part_no TEXT,
+                  customer_eta_date TEXT,
+                  date_issue_po TEXT,
+                  sales_remark TEXT,
+                  planning_production_date TEXT,
+                  planning_remark TEXT,
+                  logistic_ship_date TEXT,
+                  logistic_remark TEXT,
+                  config TEXT)''')
     conn.commit()
     conn.close()
 
-def save_data(po_num, item, amt, user):
-    """บันทึกข้อมูลลง Database"""
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    c.execute("INSERT INTO po_records (po_number, item_name, amount, date_added, added_by) VALUES (?, ?, ?, ?, ?)",
-              (po_num, item, amt, now, user))
-    conn.commit()
-    conn.close()
+# --- 2. ฟังก์ชันส่งอีเมล (ใช้ค่าจาก Secrets) ---
+def send_email_alert(po_id, customer):
+    try:
+        sender_email = st.secrets["email"]["SENDER_EMAIL"]
+        sender_password = st.secrets["email"]["SENDER_APP_PASSWORD"]
+        receiver_emails = st.secrets["email"]["ALERT_RECEIVER"]
 
-def load_data():
-    """ดึงข้อมูลทั้งหมดออกมาเป็น DataFrame"""
-    conn = sqlite3.connect(DB_NAME)
-    df = pd.read_sql("SELECT * FROM po_records ORDER BY id DESC", conn)
-    conn.close()
-    return df
+        msg = MIMEMultipart()
+        msg['From'] = sender_email
+        msg['To'] = ", ".join(receiver_emails)
+        msg['Subject'] = f"🚨 New PO Alert: {po_id} - {customer}"
 
-# --- หน้าจอหลัก ---
+        body = f"มีการเพิ่มข้อมูล PO ใหม่ในระบบ\n\nPO ID: {po_id}\nCustomer: {customer}\nบันทึกเมื่อ: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        msg.attach(MIMEText(body, 'plain'))
+
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.send_message(msg)
+        server.quit()
+        return True
+    except Exception as e:
+        st.error(f"Cannot send email: {e}")
+        return False
+
+# --- 3. หน้าจอหลักของโปรแกรม ---
+st.set_page_config(page_title="SIM PO Manager V2", layout="wide")
 st.title("📦 ระบบจัดการ PO (Version 2 - Database)")
 init_db()
 
-# ส่วน Login ง่ายๆ (ปรับตามที่คุณรุ่งต้องการ)
-user = st.sidebar.text_input("Username", value="Fern")
-
-menu = ["Dashboard", "เพิ่มข้อมูล PO", "Admin & Backup"]
+menu = ["📊 Dashboard", "➕ เพิ่มข้อมูล PO", "🛡️ Admin & Backup"]
 choice = st.sidebar.selectbox("เมนูการใช้งาน", menu)
 
-if choice == "Dashboard":
-    st.subheader("📊 รายการ PO ทั้งหมดในระบบ")
-    df = load_data()
+if choice == "📊 Dashboard":
+    st.subheader("รายการ PO ทั้งหมด (เรียงจากล่าสุด)")
+    conn = sqlite3.connect(DB_NAME)
+    df = pd.read_sql("SELECT * FROM po_records ORDER BY id DESC", conn)
+    conn.close()
     st.dataframe(df, use_container_width=True)
 
-elif choice == "เพิ่มข้อมูล PO":
-    st.subheader("➕ บันทึก PO ใหม่")
-    with st.form("po_form"):
-        po_num = st.text_input("เลขที่ PO")
-        item = st.text_input("ชื่อสินค้า")
-        amt = st.number_input("จำนวนเงิน", min_value=0.0)
-        submitted = st.form_submit_button("บันทึกข้อมูล")
+elif choice == "➕ เพิ่มข้อมูล PO":
+    st.subheader("กรอกข้อมูล PO ตาม Google Sheet")
+    with st.form("po_form", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            po_id = st.text_input("PO ID")
+            customer = st.text_input("Customer")
+            qty = st.text_input("ProductPO-Qty")
+            part_no = st.text_input("Part No")
+            eta = st.date_input("Customer-ETA-Date")
+        with col2:
+            issue_date = st.date_input("Date-Issue-PO")
+            p_date = st.date_input("Planning-Production-Date")
+            l_date = st.date_input("Logistic-Ship-Date")
+            config = st.text_input("Config")
+        
+        st.write("---")
+        sales_rem = st.text_area("Sales-Remark")
+        plan_rem = st.text_area("Planning-Remark")
+        log_rem = st.text_area("Logistic-Remark")
+
+        submitted = st.form_submit_button("บันทึกข้อมูลและส่งแจ้งเตือน")
         
         if submitted:
-            save_data(po_num, item, amt, user)
-            st.success(f"บันทึก PO {po_num} เรียบร้อยแล้ว!")
+            conn = sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            c.execute('''INSERT INTO po_records 
+                         (timestamp, po_id, customer, product, Po_qty, part_no, customer_eta_date, 
+                          date_issue_po, sales_remark, planning_production_date, planning_remark, 
+                          logistic_ship_date, logistic_remark, config) 
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                      (timestamp, po_id, customer, qty, part_no, str(eta), str(issue_date), 
+                       sales_rem, str(p_date), plan_rem, str(l_date), log_rem, config))
+            conn.commit()
+            conn.close()
+            
+            # ส่งอีเมลแจ้งเตือน
+            with st.spinner('กำลังส่งอีเมลแจ้งเตือน...'):
+                if send_email_alert(po_id, customer):
+                    st.success(f"บันทึกข้อมูลและส่งอีเมลแจ้งเตือน PO: {po_id} เรียบร้อยแล้ว!")
+                else:
+                    st.warning("บันทึกข้อมูลแล้ว แต่ส่งเมลไม่สำเร็จ (โปรดเช็ค App Password)")
 
-elif choice == "Admin & Backup":
-    st.subheader("🛡️ ส่วนจัดการข้อมูล (สำหรับคุณ Fern)")
-    df = load_data()
+elif choice == "🛡️ Admin & Backup":
+    st.subheader("ส่วนจัดการข้อมูลสำหรับคุณ Fern")
+    conn = sqlite3.connect(DB_NAME)
+    df = pd.read_sql("SELECT * FROM po_records", conn)
+    conn.close()
     
-    # --- ส่วน Export ข้อมูลเป็น Excel ---
-    st.write("### 📥 สำรองข้อมูล (Backup)")
+    st.write("### 📥 Download Backup")
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='PO_Backup')
+        df.to_excel(writer, index=False, sheet_name='PO_Master_Backup')
     
     st.download_button(
         label="Download All Data as Excel",
@@ -81,6 +133,3 @@ elif choice == "Admin & Backup":
         file_name=f"PO_Backup_{datetime.now().strftime('%Y%m%d')}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-    
-    st.divider()
-    st.warning("คำแนะนำ: ควรดาวน์โหลดไฟล์ Backup เก็บไว้ทุกสัปดาห์ครับ")
