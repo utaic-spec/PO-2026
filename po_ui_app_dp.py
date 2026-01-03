@@ -28,26 +28,20 @@ ALERT_RECEIVER = st.secrets["email"]["ALERT_RECEIVER"]
 # ==================================================
 # 2. CORE FUNCTIONS
 # ==================================================
-
 def get_ss_with_retry(retries=3):
     for i in range(retries):
         try:
             scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
             
-            # ดึงข้อมูลจาก Secrets แบบ Dict
-            creds_dict = {
-                "type": st.secrets["gcp_service_account"]["type"],
-                "project_id": st.secrets["gcp_service_account"]["project_id"],
-                "private_key_id": st.secrets["gcp_service_account"]["private_key_id"],
-                "private_key": st.secrets["gcp_service_account"]["private_key"].replace('\\n', '\n'), # แก้ปัญหาเรื่องขึ้นบรรทัดใหม่
-                "client_email": st.secrets["gcp_service_account"]["client_email"],
-                "client_id": st.secrets["gcp_service_account"]["client_id"],
-                "auth_uri": st.secrets["gcp_service_account"]["auth_uri"],
-                "token_uri": st.secrets["gcp_service_account"]["token_uri"],
-                "auth_provider_x509_cert_url": st.secrets["gcp_service_account"]["auth_provider_x509_cert_url"],
-                "client_x509_cert_url": st.secrets["gcp_service_account"]["client_x509_cert_url"]
-            }
+            # เปลี่ยนมาโหลดกุญแจจากไฟล์ JSON แทนการอ่านจาก Secrets
+            creds = Credentials.from_service_account_file("google-key.json", scopes=scope)
             
+            return gspread.authorize(creds).open_by_key(SPREADSHEET_ID)
+        except Exception as e:
+            if i == retries - 1:
+                st.error(f"⚠️ Connection Error: {e}")
+            time.sleep(1)
+    return None
             creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
             return gspread.authorize(creds).open_by_key(SPREADSHEET_ID)
         except Exception as e:
@@ -241,3 +235,4 @@ if st.session_state.authenticated:
                         if st.form_submit_button("Update"):
                             update_po_record(target, "Logistic-Ship-Date", str(s_date))
                             st.success("Updated!"); time.sleep(1); st.rerun()
+
