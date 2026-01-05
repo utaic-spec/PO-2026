@@ -87,7 +87,8 @@ def send_email_alert(po_id, customer, product, wait_hrs=0, is_overdue=False, ext
                 </table>
                 <br>
                 <div style="text-align: center;">
-                    <a href="#" style="background-color: {header_color}; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">Access System</a>
+                    <a href="https://sim-po-2026-v2.streamlit.app/" style="background-color: {header_color}; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">Acess for Update</a>
+                    
                 </div>
             </div>
             <div style="background-color: #f1f1f1; padding: 10px; text-align: center; font-size: 12px; color: #666;">
@@ -312,4 +313,5 @@ if "🚚 Logistic Update" in allowed_tabs:
                     if st.form_submit_button("Confirm Shipment"):
                         if update_data(target_id_l, {"logistic_ship_date": l_date.isoformat(), "logistic_remark": l_rem}):
                             st.success("Shipment Recorded!"); time.sleep(1); st.rerun()
+
             else: st.info("📦 ไม่มีรายการผลิตเสร็จที่รอส่ง")
