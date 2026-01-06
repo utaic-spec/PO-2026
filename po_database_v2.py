@@ -111,7 +111,9 @@ def send_email_alert(po_id, customer, product, wait_hrs=0, is_overdue=False, ext
 USER_DB = {
     "director": {"pwd": "2573", "role": "admin", "name": "K.Utai"},
     "sales_admin": {"pwd": "sales2026", "role": "sales", "name": "K.Fern"},
-    "logistic": {"pwd": "logistic2026", "role": "planning", "name": "K.Rung"}
+    "logistic": {"pwd": "logistic2026", "role": "planning", "name": "K.Rung"},
+    "mold_admin": {"pwd": "mold2026", "role": "mold_planning", "name": "K.jack"},
+    "mold_production": {"pwd": "prod_mold2026", "role": "mold_production", "name": "K.wat"}
 }
 
 st.set_page_config(page_title="SIM PO Master 2026", layout="wide")
@@ -312,4 +314,5 @@ if "🚚 Logistic Update" in allowed_tabs:
                     if st.form_submit_button("Confirm Shipment"):
                         if update_data(target_id_l, {"logistic_ship_date": l_date.isoformat(), "logistic_remark": l_rem}):
                             st.success("Shipment Recorded!"); time.sleep(1); st.rerun()
+
             else: st.info("📦 ไม่มีรายการผลิตเสร็จที่รอส่ง")
